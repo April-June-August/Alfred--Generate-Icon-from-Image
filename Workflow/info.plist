@@ -1,0 +1,445 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>bundleid</key>
+	<string>com.may-june-july.generate-Icon-from-Image</string>
+	<key>connections</key>
+	<dict>
+		<key>718F186F-63AB-4698-B92C-0A01AEDF8059</key>
+		<array>
+			<dict>
+				<key>destinationuid</key>
+				<string>37E7EE36-B3CC-4CDB-8D56-7F595E3839B8</string>
+				<key>modifiers</key>
+				<integer>0</integer>
+				<key>modifiersubtext</key>
+				<string></string>
+				<key>sourceoutputuid</key>
+				<string>FBAF936E-A355-4FD4-92FC-F7A0B5116F8C</string>
+				<key>vitoclose</key>
+				<false/>
+			</dict>
+			<dict>
+				<key>destinationuid</key>
+				<string>92F6EFA7-92EE-4F16-A4A6-7FB001A734A1</string>
+				<key>modifiers</key>
+				<integer>0</integer>
+				<key>modifiersubtext</key>
+				<string></string>
+				<key>vitoclose</key>
+				<false/>
+			</dict>
+		</array>
+		<key>BAC9F94D-3120-4189-ABB1-0AF185126CDE</key>
+		<array>
+			<dict>
+				<key>destinationuid</key>
+				<string>F99A79A3-E1BD-41CE-A7F4-61FBAB4FCE6A</string>
+				<key>modifiers</key>
+				<integer>0</integer>
+				<key>modifiersubtext</key>
+				<string></string>
+				<key>vitoclose</key>
+				<false/>
+			</dict>
+		</array>
+		<key>F99A79A3-E1BD-41CE-A7F4-61FBAB4FCE6A</key>
+		<array>
+			<dict>
+				<key>destinationuid</key>
+				<string>718F186F-63AB-4698-B92C-0A01AEDF8059</string>
+				<key>modifiers</key>
+				<integer>0</integer>
+				<key>modifiersubtext</key>
+				<string></string>
+				<key>vitoclose</key>
+				<false/>
+			</dict>
+		</array>
+	</dict>
+	<key>createdby</key>
+	<string>May June July</string>
+	<key>description</key>
+	<string>Generate icons from images with Alfred’s Univesal Action</string>
+	<key>disabled</key>
+	<false/>
+	<key>name</key>
+	<string>Generate Icon from Image</string>
+	<key>objects</key>
+	<array>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>lastpathcomponent</key>
+				<false/>
+				<key>onlyshowifquerypopulated</key>
+				<false/>
+				<key>removeextension</key>
+				<false/>
+				<key>text</key>
+				<string>See the debugger</string>
+				<key>title</key>
+				<string>Icon creation failed.</string>
+			</dict>
+			<key>type</key>
+			<string>alfred.workflow.output.notification</string>
+			<key>uid</key>
+			<string>37E7EE36-B3CC-4CDB-8D56-7F595E3839B8</string>
+			<key>version</key>
+			<integer>1</integer>
+		</dict>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>acceptsmulti</key>
+				<integer>0</integer>
+				<key>filetypes</key>
+				<array>
+					<string>public.jpeg</string>
+				</array>
+				<key>name</key>
+				<string>Generate Icon</string>
+			</dict>
+			<key>type</key>
+			<string>alfred.workflow.trigger.action</string>
+			<key>uid</key>
+			<string>BAC9F94D-3120-4189-ABB1-0AF185126CDE</string>
+			<key>version</key>
+			<integer>1</integer>
+		</dict>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>concurrently</key>
+				<false/>
+				<key>escaping</key>
+				<integer>102</integer>
+				<key>script</key>
+				<string>#!/bin/zsh
+
+set -euo pipefail
+
+# --- config ---
+FAIL_MSG="FAILED"
+MAGICK="/opt/homebrew/bin/magick"
+CANVAS_SIZE=256
+BORDER=30
+INNER_SIZE=$((CANVAS_SIZE - BORDER * 2))
+RADIUS=60  # rounded corner radius
+
+# --- logging function (stderr) ---
+log() {
+  echo "[LOG] $1" &gt;&amp;2
+}
+
+# --- error handler ---
+fail() {
+  echo "$FAIL_MSG"
+  exit 1
+}
+
+# --- input check ---
+if [[ $# -ne 1 ]]; then
+  log "Invalid number of arguments"
+  fail
+fi
+
+INPUT_PATH="$1"
+
+log "Received input: $INPUT_PATH"
+
+if [[ ! -f "$INPUT_PATH" ]]; then
+  log "Input file does not exist"
+  fail
+fi
+
+# --- prepare paths ---
+DIR=$(dirname "$INPUT_PATH")
+FILENAME=$(basename "$INPUT_PATH")
+NAME="${FILENAME%.*}"
+EXT="${FILENAME##*.}"
+
+OUTPUT_PATH="$DIR/${NAME}_256.png"
+
+log "Output will be: $OUTPUT_PATH"
+
+# --- temp files ---
+TMP_IMG=$(mktemp -t imgXXXXXX).png
+TMP_MASK=$(mktemp -t maskXXXXXX).png
+
+log "Temporary image: $TMP_IMG"
+log "Temporary mask: $TMP_MASK"
+
+cleanup() {
+  [[ -n "$TMP_IMG" &amp;&amp; -f "$TMP_IMG" ]] &amp;&amp; rm -f "$TMP_IMG"
+  [[ -n "$TMP_MASK" &amp;&amp; -f "$TMP_MASK" ]] &amp;&amp; rm -f "$TMP_MASK"
+}
+
+trap cleanup EXIT
+
+# --- resize image to fit inner box ---
+log "Resizing image to fit ${INNER_SIZE}x${INNER_SIZE}"
+"$MAGICK" "$INPUT_PATH" \
+  -resize "${INNER_SIZE}x${INNER_SIZE}" \
+  "$TMP_IMG" || { log "Resize failed"; fail; }
+
+# --- create Apple-style squircle mask ---
+log "Creating Apple-style squircle mask"
+
+"$MAGICK" -size "${INNER_SIZE}x${INNER_SIZE}" xc:black \
+  -channel RGB \
+  -fx 'pow(abs(2*i/w-1),5)+pow(abs(2*j/h-1),5)&lt;=1 ? 1 : 0' \
+  -blur 0x0.5 \
+  "$TMP_MASK" || { log "Mask creation failed"; fail; }
+
+# --- apply rounded corners ---
+log "Applying rounded corners"
+
+"$MAGICK" "$TMP_IMG" \
+  -alpha set \
+  "$TMP_MASK" \
+  -compose CopyOpacity -composite \
+  "$TMP_IMG" || { log "Rounded corner apply failed"; fail; }
+
+# --- place onto canvas ---
+log "Compositing onto ${CANVAS_SIZE}x${CANVAS_SIZE} canvas"
+"$MAGICK" -size "${CANVAS_SIZE}x${CANVAS_SIZE}" xc:none \
+  "$TMP_IMG" \
+  -gravity center -composite \
+  "$OUTPUT_PATH" || { log "Final composite failed"; fail; }
+
+# --- success ---
+log "Image created successfully"
+
+echo "$OUTPUT_PATH"
+exit 0</string>
+				<key>scriptargtype</key>
+				<integer>1</integer>
+				<key>scriptfile</key>
+				<string></string>
+				<key>type</key>
+				<integer>11</integer>
+			</dict>
+			<key>type</key>
+			<string>alfred.workflow.action.script</string>
+			<key>uid</key>
+			<string>F99A79A3-E1BD-41CE-A7F4-61FBAB4FCE6A</string>
+			<key>version</key>
+			<integer>2</integer>
+		</dict>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>path</key>
+				<string></string>
+			</dict>
+			<key>type</key>
+			<string>alfred.workflow.action.revealfile</string>
+			<key>uid</key>
+			<string>92F6EFA7-92EE-4F16-A4A6-7FB001A734A1</string>
+			<key>version</key>
+			<integer>1</integer>
+		</dict>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>conditions</key>
+				<array>
+					<dict>
+						<key>inputstring</key>
+						<string></string>
+						<key>matchcasesensitive</key>
+						<false/>
+						<key>matchmode</key>
+						<integer>0</integer>
+						<key>matchstring</key>
+						<string>FAILED</string>
+						<key>outputlabel</key>
+						<string></string>
+						<key>uid</key>
+						<string>FBAF936E-A355-4FD4-92FC-F7A0B5116F8C</string>
+					</dict>
+				</array>
+				<key>elselabel</key>
+				<string>else</string>
+				<key>hideelse</key>
+				<false/>
+			</dict>
+			<key>type</key>
+			<string>alfred.workflow.utility.conditional</string>
+			<key>uid</key>
+			<string>718F186F-63AB-4698-B92C-0A01AEDF8059</string>
+			<key>version</key>
+			<integer>1</integer>
+		</dict>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>concurrently</key>
+				<false/>
+				<key>escaping</key>
+				<integer>102</integer>
+				<key>script</key>
+				<string>#!/bin/zsh
+
+set -euo pipefail
+
+# --- config ---
+FAIL_MSG="FAILED"
+MAGICK="/opt/homebrew/bin/magick"
+CANVAS_SIZE=256
+BORDER=30
+INNER_SIZE=$((CANVAS_SIZE - BORDER * 2))
+RADIUS=60  # rounded corner radius
+
+# --- logging function (stderr) ---
+log() {
+  echo "[LOG] $1" &gt;&amp;2
+}
+
+# --- error handler ---
+fail() {
+  echo "$FAIL_MSG"
+  exit 1
+}
+
+# --- input check ---
+if [[ $# -ne 1 ]]; then
+  log "Invalid number of arguments"
+  fail
+fi
+
+INPUT_PATH="$1"
+
+log "Received input: $INPUT_PATH"
+
+if [[ ! -f "$INPUT_PATH" ]]; then
+  log "Input file does not exist"
+  fail
+fi
+
+# --- prepare paths ---
+DIR=$(dirname "$INPUT_PATH")
+FILENAME=$(basename "$INPUT_PATH")
+NAME="${FILENAME%.*}"
+EXT="${FILENAME##*.}"
+
+OUTPUT_PATH="$DIR/${NAME}_256.png"
+
+log "Output will be: $OUTPUT_PATH"
+
+# --- temp files ---
+TMP_IMG=$(mktemp /tmp/imgXXXX.png)
+TMP_MASK=$(mktemp /tmp/maskXXXX.png)
+
+log "Temporary image: $TMP_IMG"
+log "Temporary mask: $TMP_MASK"
+
+# --- resize image to fit inner box ---
+log "Resizing image to fit ${INNER_SIZE}x${INNER_SIZE}"
+"$MAGICK" "$INPUT_PATH" \
+  -resize "${INNER_SIZE}x${INNER_SIZE}" \
+  "$TMP_IMG" || { log "Resize failed"; fail; }
+
+# --- create rounded mask ---
+log "Creating rounded corner mask"
+
+"$MAGICK" -size "${INNER_SIZE}x${INNER_SIZE}" xc:black \
+  -fill white \
+  -draw "roundrectangle 0,0 $INNER_SIZE,$INNER_SIZE $RADIUS,$RADIUS" \
+  "$TMP_MASK" || { log "Mask creation failed"; fail; }
+
+# --- apply rounded corners ---
+log "Applying rounded corners"
+
+"$MAGICK" "$TMP_IMG" \
+  -alpha set \
+  "$TMP_MASK" \
+  -compose CopyOpacity -composite \
+  "$TMP_IMG" || { log "Rounded corner apply failed"; fail; }
+
+# --- place onto canvas ---
+log "Compositing onto ${CANVAS_SIZE}x${CANVAS_SIZE} canvas"
+"$MAGICK" -size "${CANVAS_SIZE}x${CANVAS_SIZE}" xc:none \
+  "$TMP_IMG" \
+  -gravity center -composite \
+  "$OUTPUT_PATH" || { log "Final composite failed"; fail; }
+
+# --- cleanup ---
+log "Cleaning up temp files"
+rm -f "$TMP_IMG" "$TMP_MASK" || { log "Cleanup failed"; fail; }
+
+# --- success ---
+log "Image created successfully"
+
+echo "$OUTPUT_PATH"
+exit 0</string>
+				<key>scriptargtype</key>
+				<integer>1</integer>
+				<key>scriptfile</key>
+				<string></string>
+				<key>type</key>
+				<integer>11</integer>
+			</dict>
+			<key>type</key>
+			<string>alfred.workflow.action.script</string>
+			<key>uid</key>
+			<string>3F041813-9E6F-4E35-A9CC-0A0247703414</string>
+			<key>version</key>
+			<integer>2</integer>
+		</dict>
+	</array>
+	<key>readme</key>
+	<string></string>
+	<key>uidata</key>
+	<dict>
+		<key>37E7EE36-B3CC-4CDB-8D56-7F595E3839B8</key>
+		<dict>
+			<key>xpos</key>
+			<real>620</real>
+			<key>ypos</key>
+			<real>65</real>
+		</dict>
+		<key>3F041813-9E6F-4E35-A9CC-0A0247703414</key>
+		<dict>
+			<key>xpos</key>
+			<real>355</real>
+			<key>ypos</key>
+			<real>305</real>
+		</dict>
+		<key>718F186F-63AB-4698-B92C-0A01AEDF8059</key>
+		<dict>
+			<key>xpos</key>
+			<real>550</real>
+			<key>ypos</key>
+			<real>100</real>
+		</dict>
+		<key>92F6EFA7-92EE-4F16-A4A6-7FB001A734A1</key>
+		<dict>
+			<key>xpos</key>
+			<real>765</real>
+			<key>ypos</key>
+			<real>100</real>
+		</dict>
+		<key>BAC9F94D-3120-4189-ABB1-0AF185126CDE</key>
+		<dict>
+			<key>xpos</key>
+			<real>170</real>
+			<key>ypos</key>
+			<real>80</real>
+		</dict>
+		<key>F99A79A3-E1BD-41CE-A7F4-61FBAB4FCE6A</key>
+		<dict>
+			<key>xpos</key>
+			<real>355</real>
+			<key>ypos</key>
+			<real>80</real>
+		</dict>
+	</dict>
+	<key>userconfigurationconfig</key>
+	<array/>
+	<key>webaddress</key>
+	<string>https://github.com/April-June-August/Alfred--Generate-Icon-from-Image</string>
+</dict>
+</plist>
